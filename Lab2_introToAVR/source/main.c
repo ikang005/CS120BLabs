@@ -16,7 +16,7 @@ int main(void) {
 	DDRA = 0x00; PORTA = 0xFF;
 	DDRB = 0X00; PORTB = 0XFF;
   	DDRC = 0x00; PORTC = 0xFF;
-	DDRD = 0XFF; PORTD = 0x00;
+	DDRD = 0xFF; PORTD = 0x00;
 	
 	unsigned char wgtA = 0x00;
 	unsigned char wgtB = 0x00;
@@ -31,15 +31,15 @@ int main(void) {
 		wgtC = PINC;
 
 		totWgt = wgtA + wgtB + wgtC;
-		wgtDiff = abs((wgtA - wgtC));
-
-		if((wgtDiff >= 0x50) && (totWgt >= 0x008C)){
-			PORTD = (totWgt << 2) | 0x03;
+		
+		if(abs((wgtA - wgtC)) >= 0x50){
+			wgtDiff = 0x02;
 		}
-		else{
-			PORTD = (totWgt << 2) | 0x00;
+		if(totWgt >= 0x008C){
+			tmpWgt = 0x01;
 		}
 
+		PORTD = tmpWgt | wgtDiff;		
 		tmpWgt = 0x00;
 		wgtDiff = 0x00;
 		totWgt = 0x0000;
