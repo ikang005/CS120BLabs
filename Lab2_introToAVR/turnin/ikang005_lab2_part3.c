@@ -32,9 +32,7 @@ int main(void) {
 		if(cntavail == 0x04){
 			PORTC = 0x80;
 		}else{
-			cntavail = tmpA + tmpB + tmpC + tmpD;
-			cntavail = ~cntavail;
-			cntavail = cntavail & 0x0F;
+			cntavail = 0x04 - cntavail;
 			PORTC = cntavail;
 		}
    	}
