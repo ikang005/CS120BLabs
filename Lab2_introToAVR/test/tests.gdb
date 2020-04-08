@@ -27,7 +27,7 @@ echo ======================================================\n
 echo Running all tests..."\n\n
 
 # Example test:
-test "PINA: 0x8C && PINB: 0x00 && PINC: 0x00 => PORTD: 0x03"
+test "PINA: 0x8C, PINB: 0x00, PINC: 0x00 => PORTD: 0x"
 # Set inputs
 setPINA 0x8C
 setPINB 0x00
@@ -39,7 +39,7 @@ expectPORTD 0x03
 # Check pass/fail
 checkResult
 
-test "PINA: 0x32 && PINB: 0x32 && PINC: 0x28 => PORTD: 0x01"
+test "PINA: 0x32, PINB: 0x32, PINC: 0x28 => PORTD: 0x01"
 setPINA 0x32
 setPINB 0x32
 setPINC 0x28
@@ -47,7 +47,7 @@ continue 5
 expectPORTD 0x01
 checkResult
 
-test "PINA: 0x50 && PINB: 0x00 && PINC: 0x00 => PORTD: 0x02"
+test "PINA: 0x50, PINB: 0x00, PINC: 0x00 => PORTD: 0x02"
 setPINA 0x50
 setPINB 0x00
 setPINC 0x00
