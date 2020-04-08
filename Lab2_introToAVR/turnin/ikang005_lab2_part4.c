@@ -34,10 +34,10 @@ int main(void) {
 		wgtDiff = abs((wgtA - wgtC));
 
 		if((wgtDiff >= 0x50) && (totWgt >= 0x008C)){
-			PORTD = 0x03;
+			PORTD = (totWgt << 2) | 0x03;
 		}
 		else{
-			PORTD = 0x00
+			PORTD = (totWgt << 2) | 0x00;
 		}
 
 		tmpWgt = 0x00;
