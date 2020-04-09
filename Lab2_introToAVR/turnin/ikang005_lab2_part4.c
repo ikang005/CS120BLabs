@@ -31,14 +31,20 @@ int main(void) {
 		wgtC = PINC;
 
 		totWgt = wgtA + wgtB + wgtC;
-		wgtDiff = abs((wgtA - wgtC));
 		
-		if((totWgt >= 0x008C) && (wgtDiff >= 0x50)){
-			PORTD = (totWgt >> 2) | 0x03;
+		if(totWgt >= 0x008C){
+			tmpWgt = 0x01;
 		}
 		else{
-			PORTD = (totWgt >> 2) | 0x00;
+			tmpWgt = 0x00;
 		}
+		if((wgtA - wgtB) >= 0x50){
+			wgtDiff = 0x02;
+		}
+		else{
+			wgtDiff = 0x00;
+		}
+		PORTD = (totWgt | tmpWgt) | wgtDiff;
    	}
     return 0;
 }
