@@ -24,25 +24,21 @@ int main(void) {
 	unsigned char wgtDiff = 0x00;
 	unsigned char tmpWgt = 0x00;
 	unsigned short totWgt = 0x0000;
-	
+
     	while (1) {
 		wgtA = PINA;
 		wgtB = PINB;
 		wgtC = PINC;
 
 		totWgt = wgtA + wgtB + wgtC;
+		wgtDiff = abs((wgtA - wgtC));
 		
-		if(abs((wgtA - wgtC)) >= 0x50){
-			wgtDiff = 0x02;
+		if((totWgt >= 0x008C) && (wgtDiff >= 0x50)){
+			PORTD = (totWgt >> 2) | 0x03;
 		}
-		if(totWgt >= 0x008C){
-			tmpWgt = 0x01;
+		else{
+			PORTD = (totWgt >> 2) | 0x00;
 		}
-
-		PORTD = tmpWgt | wgtDiff;		
-		tmpWgt = 0x00;
-		wgtDiff = 0x00;
-		totWgt = 0x0000;
    	}
     return 0;
 }
