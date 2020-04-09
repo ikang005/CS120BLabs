@@ -38,7 +38,7 @@ int main(void) {
 		else{
 			tmpWgt = 0x00;
 		}
-		if((wgtA - wgtB) >= 0x50){
+		if((wgtA - wgtC) >= 0x50){
 			wgtDiff = 0x02;
 		}
 		else{
