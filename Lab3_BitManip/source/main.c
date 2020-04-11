@@ -21,16 +21,15 @@ int main(void) {
 	unsigned char numB = 0x00;
 	unsigned char totA = 0x00;
 	unsigned char totB = 0x00;
-	unsigned char i = 0;
 	unsigned char tmp = 0x00;
-	
+	unsigned char i;	
     while(1)
     {
 		numA = PINA;
 		numB = PINB;
 		totA = 0x00;
 		totB = 0x00;
-		for(i; i < 0x08; i = i + 0x01)
+		for(i = 0x00; i < 0x08; i = i + 0x01)
 		{
 			tmp = (numA >> i) & 0x01;
 			if(tmp == 0x01)
@@ -39,7 +38,7 @@ int main(void) {
 			}
 		}
 		i = 0x00;
-		for(i; i < 0x08; i = i + 0x01)
+		for(i = 0x00; i < 0x08; i = i + 0x01)
 		{
 			tmp = (numB >> i) & 0x01;
 			if(tmp == 0x01)
