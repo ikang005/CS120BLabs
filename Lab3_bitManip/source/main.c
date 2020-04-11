@@ -13,11 +13,39 @@
 #endif
 
 int main(void) {
-    /* Insert DDR and PORT initializations */
+    
+	DDRA = 0x00; PORTA = 0xFF;
+	DDRB = 0x00; PORTB = 0xFF;
+	DDRC = 0xFF; PORTC = 0x00;
 
-    /* Insert your solution below */
-    while (1) {
-
-    }
-    return 1;
+	unsigned char numA = 0x00;
+	unsigned char numB = 0x00;
+	unsigned char totA = 0x00;
+	unsigned char totB = 0x00;
+	unsigned char i = 0x00;
+	unsigned char tmp = 0x00;
+	
+    	while (1) {
+		numA = PINA;
+		numB = PINB;
+		totA = 0x00;
+		totB = 0x00;
+		
+		for(i; i < 0x08; i = i + 0x01){
+			tmp = (numA >> i) & 0x01;
+			if(tmp == 0x01){
+				totA = totA + 0x01;
+			}
+		}
+		i = 0x00;
+		for(i; i < 0x08; i = i + 0x01){
+			tmp = (numB >> i) & 0x01;
+			if(tmp == 0x01){
+				totB = totB + 0x01;
+			}
+		}
+		PORTC = totA + totB;
+		i = 0x00;
+    	}
+    return 0;
 }
