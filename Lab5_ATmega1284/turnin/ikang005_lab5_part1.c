@@ -1,11 +1,11 @@
-/*	Author: Isaac Kang - ikang005
- *  Partner(s) Name: 
- *	Lab Section:21
- *	Assignment: Lab #5  Exercise #1
- *	Exercise Description: [optional - include for your own benefit]
- *	Fuel Sensor
- *	I acknowledge all content contained herein, excluding template or example
- *	code, is my own original work.
+/*    Author: Isaac Kang - ikang005
+ *    Partner(s) Name:
+ *    Lab Section:21
+ *    Assignment: Lab #5  Exercise #1
+ *    Exercise Description: [optional - include for your own      benefit]
+ *    Fuel Sensor
+ *    I acknowledge all content contained herein, excluding     template or example
+ *    code, is my own original work.
  */
 #include <avr/io.h>
 #ifdef _SIMULATE_
@@ -18,8 +18,36 @@ int main(void) {
 
     unsigned char fl = 0x00;
 
-    while(1){
-        fl = ~PINA;
+    
+    while(1) {
+      fl = ~PINA & 0x0F;
+
+      if(fl < 0x01){
+        PORTC = 0x40;
+      }
+      else if(fl <= 0x02 && fl >= 0x01){
+        PORTC = 0x60;
+      }
+      else if(fl >= 0x03 && fl <= 0x04){
+        PORTC = 0x70;
+      }
+      else if(fl >= 0x05 && fl <= 0x06){
+        PORTC = 0x38;
+      }
+      else if(fl >= 0x07 && fl <= 0x09){
+        PORTC = 0x3C;
+      }
+      else if(fl >= 0x0A && fl <= 0x0C){
+        PORTC = 0x3E;
+      }
+      else if(fl >= 0x0D && fl <= 0x0F){
+        PORTC = 0x3F;
+      }
+    }
+    return 1;
+}
+        
+        /*
         switch(fl){
             case 0x00:
                 PORTC = 0x40;
@@ -75,3 +103,4 @@ int main(void) {
     }
     return 0;
 }
+         */
