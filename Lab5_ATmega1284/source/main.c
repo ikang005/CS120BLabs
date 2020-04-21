@@ -12,7 +12,7 @@
 #include "simAVRHeader.h"
 #endif
 
-enum States{START, INIT, INC, DEC, RESET , WAIT}state;
+enum States{START, INIT, INC, DEC, RESET, WAIT}state;
 unsigned char tmp;
 unsigned char tmpVal;
 
@@ -24,10 +24,8 @@ void Tick()
         state = INIT;
         break;
         case INIT:
-            if(tmp == 0x01)
-            {
+            if(tmp == 0x01){
               state = INC;
-
             }
             else if(tmp == 0x02)
             {
@@ -43,16 +41,9 @@ void Tick()
             }
             break;
         case WAIT:
-            if(tmp == 0x00)
-            {
+            if(tmp == 0x00){
               state = INIT;
             }
-	    else if(tmp == 0x01){
-		    state = INC;
-	    }
-	    else if(tmp == 0x02){
-		    state = DEC;
-	    }
             else if(tmp == 0x03)
             {
               state = RESET;
@@ -82,23 +73,19 @@ void Tick()
             PORTC = tmpVal;
             break;
         case INC:
-            if(PORTC == 0x09)
-            {
+            if(PORTC == 0x09){
                 PORTC = tmpVal;
             }
-            else
-            {
+            else{
                 PORTC = tmpVal + 0x01;
                 tmpVal = tmpVal + 0x01;
             }
             break;
         case DEC:
-            if(PORTC == 0x00)
-            {
+            if(PORTC == 0x00){
                 PORTC = tmpVal;
             }
-            else
-            {
+            else{
                 PORTC = tmpVal - 0x01;
                 tmpVal = tmpVal - 0x01;
             }
