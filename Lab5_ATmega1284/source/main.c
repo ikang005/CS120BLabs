@@ -1,115 +1,121 @@
-/*	Author: Isaac Kang - ikang005
- *  Partner(s) Name: 
- *	Lab Section:21
- *	Assignment: Lab #5  Exercise #1
- *	Exercise Description: [optional - include for your own benefit]
- *	Fuel Sensor
- *	I acknowledge all content contained herein, excluding template or example
- *	code, is my own original work.
+/*    Author: Isaac Kang - ikang005
+ *    Partner(s) Name:
+ *    Lab Section:21
+ *    Assignment: Lab #5  Exercise #2
+ *    Exercise Description: [optional - include for your own benefit]
+ *    INC & DEC
+ *    I acknowledge all content contained herein, excluding tmplate or example
+ *    code, is my own original work.
  */
 #include <avr/io.h>
 #ifdef _SIMULATE_
 #include "simAVRHeader.h"
 #endif
 
-enum States{START, INIT, INC, DEC, WAIT, RESET}state;
+enum States{START, INIT, INC, DEC, RESET , WAIT}state;
+unsigned char tmp;
+unsigned char tmpVal;
 
-void Tick(){
-    //State transitions
-    switch(state){
-        case START:
-            state = INIT;
-            break;
+void Tick()
+{
+    switch(state)
+    {
+       case START:
+        state = INIT;
+        break;
         case INIT:
-            if((~PINA & 0x03) == 0x01){
-                state = INC;
-		break;
+            if(tmp == 0x01)
+            {
+              state = INC;
+
             }
-            else if((~PINA & 0x03) == 0x02){
-                state = DEC;
-		break;
+            else if(tmp == 0x02)
+            {
+              state = DEC;
             }
-            else if((~PINA & 0x03) == 0x03){
-                state = RESET;
-		break;
+            else if(tmp == 0x03)
+            {
+              state = RESET;
             }
-            else{
-                state = INIT;
-		break;
+            else
+            {
+              state = INIT;
             }
+            break;
+        case WAIT:
+            if(tmp == 0x00)
+            {
+              state = INIT;
+            }
+            else if(tmp == 0x03)
+            {
+              state = RESET;
+            }
+            break;
         case INC:
             state = WAIT;
             break;
         case DEC:
             state = WAIT;
             break;
-        case WAIT:
-            if(((~PINA & 0x03) == 0x01) || ((~PINA & 0x03) == 0x02)){
-                state = WAIT;
-		break;
-            }
-            else if((~PINA & 0x03) == 0x03){
-                state = RESET;
-		break;
-            }
-            else{
-                state = INIT;
-		break;
-            }
         case RESET:
-            if(((~PINA & 0x03) == 0x01) || ((~PINA & 0x03) == 0x02)){
-                state = RESET;
-		break;
-            }
-            else{
-                state = INIT;
-		break;
-            }
+            state = WAIT;
+            break;
         default:
             break;
     }
-    //State Actions
-    switch(state){
+
+    switch(state)
+    {
         case START:
-            PORTC = 0x07;
             break;
         case INIT:
+            PORTC = tmpVal;
+            break;
+        case WAIT:
+            PORTC = tmpVal;
             break;
         case INC:
-            if(PORTC >= 0x09){
-                PORTC = 0x09;
-		break;
+            if(PORTC == 0x09)
+            {
+                PORTC = tmpVal;
             }
-            else{
-                PORTC = PORTC + 0x01;
-		break;
+            else
+            {
+                PORTC = tmpVal + 0x01;
+                tmpVal = tmpVal + 0x01;
             }
+            break;
         case DEC:
-            if(PORTC <= 0x00){
-                PORTC = 0x00;
-		break;
+            if(PORTC == 0x00)
+            {
+                PORTC = tmpVal;
             }
-            else{
-                PORTC = PORTC - 0x01;
-		break;
+            else
+            {
+                PORTC = tmpVal - 0x01;
+                tmpVal = tmpVal - 0x01;
             }
-        case WAIT:
             break;
         case RESET:
             PORTC = 0x00;
+            tmpVal = 0x00;
             break;
         default:
             break;
     }
 }
 
-void main(){
-    DDRA = 0x00; PORTA = 0xFF; //Initialize outputs
-    DDRC = 0xFF; PORTC = 0x07;
-    state = START;//Indicates initial call
+int main(void) {
+    DDRA = 0x00; PORTA = 0xFF;
+    DDRC = 0xFF; PORTC = 0x00;
 
-    while(1){
+    tmpVal = 0x07;
+    state = START;
+    
+    while (1)
+    {
+        tmp = (~PINA & 0x03);
         Tick();
     }
-    return;
 }
