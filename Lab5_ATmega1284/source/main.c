@@ -47,6 +47,12 @@ void Tick()
             {
               state = INIT;
             }
+	    else if(tmp == 0x01){
+		    state = INC;
+	    }
+	    else if(tmp == 0x02){
+		    state = DEC;
+	    }
             else if(tmp == 0x03)
             {
               state = RESET;
