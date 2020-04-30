@@ -29,7 +29,7 @@ int main(void) {
         PORTC = 0x60;
       }
       else if(fl >= 0x03 && fl <= 0x04){
-        PORTC = 0x70;
+        PORTC = 0x30;
       }
       else if(fl >= 0x05 && fl <= 0x06){
         PORTC = 0x38;

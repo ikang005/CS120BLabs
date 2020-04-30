@@ -103,7 +103,7 @@ int main(void) {
     DDRA = 0x00; PORTA = 0xFF;
     DDRC = 0xFF; PORTC = 0x00;
 
-    tmpVal = 0x07;
+    tmpVal = 0x00;
     state = START;
     
     while (1)
