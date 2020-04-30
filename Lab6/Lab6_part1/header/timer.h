@@ -1,3 +1,9 @@
+#ifndef TIMER_H
+#define TIMER_H
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
 volatile unsigned char TimerFlag = 0;
 
 unsigned long _avr_timer_M = 1;
