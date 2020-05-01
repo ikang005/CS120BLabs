@@ -56,7 +56,6 @@ void TimerSet(unsigned long M){
 void Tick(){
     switch(state){
         case Start:
-            PORTB = 0x00;
             state = First;
             break;
         case First:
@@ -99,7 +98,7 @@ int main(void) {
     while (1)
     {
         Tick();
-        while(!TimerFlag){}
+        while(!TimerFlag);
         TimerFlag = 0;
     }
 }
