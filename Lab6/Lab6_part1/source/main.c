@@ -11,6 +11,7 @@
 //Demo:
 
 #include <avr/io.h>
+#include <avr/interrupt.h>
 #ifdef _SIMULATE_
 #include "simAVRHeader.h"
 #endif
@@ -41,7 +42,7 @@ void TimerISR(){
 }
 
 ISR(TIMER1_COMPA_vect){
-    -_avr_timer_cntcurr--;
+    _avr_timer_cntcurr--;
     if(_avr_timer_cntcurr == 0){
         TimerISR();
         _avr_timer_cntcurr = _avr_timer_M;
@@ -56,7 +57,6 @@ void TimerSet(unsigned long M){
 void Tick(){
     switch(state){
         case Start:
-            PORTB = 0x00;
             state = First;
             break;
         case First:
@@ -69,6 +69,7 @@ void Tick(){
             state = First;
             break;
         default:
+	    state = First;
             break;
     }
     switch(state){
@@ -83,7 +84,8 @@ void Tick(){
         case Third:
             PORTB = 0x04;
             break;
-        default:
+	default:
+	    PORTB = 0x00;
             break;
     }
 }
@@ -94,12 +96,12 @@ int main(void) {
     
     TimerSet(1000);
     TimerOn();
-    state = START;
+    state = Start;
     
     while (1)
     {
         Tick();
-        while(!TimerFlag){}
+        while(!TimerFlag);
         TimerFlag = 0;
     }
 }
