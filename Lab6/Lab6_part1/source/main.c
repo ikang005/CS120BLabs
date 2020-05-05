@@ -63,8 +63,7 @@ int main(void) {
     TimerOn();
     state = Start;
     
-    while (1)
-    {
+    while(1){
         Tick();
         while(!TimerFlag);
         TimerFlag = 0;

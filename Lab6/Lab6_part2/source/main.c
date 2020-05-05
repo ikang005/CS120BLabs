@@ -11,19 +11,21 @@
 //Demo:
 
 #include <avr/io.h>
+#include <avr/interrupt.h>
 #ifdef _SIMULATE_
 #include "simAVRHeader.h"
 #endif
+
+enum States{Start, First, Second, Third, Wait, Restart}state;
+unsigned char button;
+unsigned char path;
+unsigned char B;
+unsigned char button_pressed;
 
 volatile unsigned char TimerFlag = 0;
 
 unsigned long _avr_timer_M = 1;
 unsigned long _avr_timer_cntcurr = 0;
-unsigned char tmp = 0x00;
-
-#define button (~PINA & 0x01)
-
-enum States{Start, First, Second, Third, Press, Release, Restart}state;
 
 void TimerOn(){
     TCCR1B = 0x0B;
@@ -44,7 +46,7 @@ void TimerISR(){
 
 ISR(TIMER1_COMPA_vect){
     _avr_timer_cntcurr--;
-    if(_avr_timer_cntcurr == 0) {
+    if(_avr_timer_cntcurr == 0){
         TimerISR();
         _avr_timer_cntcurr = _avr_timer_M;
     }
@@ -61,75 +63,87 @@ void Tick(){
             state = First;
             break;
         case First:
-            if(button){
-                state = Press;
+            if(button == 0x01 && button_pressed == 0){
+                state = Wait;
             }
             else{
+                if(button == 0x00){
+                    button_pressed = 0;
+                }
                 state = Second;
             }
             break;
         case Second:
-            if(button){
-                state = Press;
+            if(button == 0x01 && button_pressed == 0){
+                state = Wait;
             }
             else{
-                state = Third;
+                if(path == 1){
+                    if(button == 0x00){
+                        button_pressed = 0;
+                    }
+                    state = Third;
+                }
+                else{
+                    if(button == 0x00){
+                        button_pressed = 0;
+                    }
+                    state = First;
+                }
             }
             break;
         case Third:
-            if(button){
-                state = Press;
+            if(button == 0x01 && button_pressed == 0){
+                state = Wait;
             }
             else{
-                state = First;
+                if(button == 0x00){
+                    button_pressed = 0;
+                }
+                state = Second;
             }
             break;
-        case Press:
-            if(button){
-                state = Press;
+        case Wait:
+            if(button == 0x01){
+                state = Wait;
             }
             else{
-                state = Release;
-            }
-            break;
-        case Release:
-            if(button){
                 state = Restart;
-            }
-            else{
-                state = Release;
             }
             break;
         case Restart:
-            if(button){
-                state = Restart;
+            if(button == 0x01){
+                state = First;
+                button_pressed = 1;
             }
             else{
-                state = First;
+                state = Restart;
             }
             break;
         default:
+            state = First;
             break;
     }
     switch(state){
         case Start:
             break;
         case First:
-            PORTB = 0x01;
+            B = 0x01;
+            path = 1;
             break;
         case Second:
-            PORTB = 0x02;
+            B = 0x02;
             break;
         case Third:
-            PORTB = 0x04;
+            B = 0x04;
+            path = 0;
             break;
-        case Press:
-            break;
-        case Release:
+        case Wait:
             break;
         case Restart:
             break;
         default:
+            B = 0x01;
             break;
     }
 }
@@ -138,17 +152,20 @@ int main(void) {
     DDRA = 0x00; PORTA = 0xFF;
     DDRB = 0xFF; PORTB = 0x00;
     
-    TimerSet(1000);
+    TimerSet(300);
     TimerOn();
     state = Start;
     
+    button = 0x00;
+    B = 0x00;
+    
     while (1)
     {
-        //tmp = ~PINA & 0x01;
+        button = ~PINA & 0x01;
         Tick();
         while(!TimerFlag);
         TimerFlag = 0;
+        PORTB = B;
     }
-    return 1;
+    return 0;
 }
-
