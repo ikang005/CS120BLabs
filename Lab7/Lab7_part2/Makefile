@@ -1,6 +1,6 @@
 # University of California, Riverside
 # CS120B Makefile
-MMCU=atmega1284
+MMCU=atmega1284p
 FREQ=8000000
 
 PATHB=build/
@@ -15,12 +15,12 @@ OBJS=$(patsubst $(PATHS)%,$(PATHO)%,$(SOURCES:.c=.o))
 
 CLEAN=rm -rf
 # Simulator
-SIMAVRDIR=/usr/csshare/pkgs/simavr
+SIMAVRDIR=~/usr/local/bin/simavr
 SIMAVR=simavr
 
 # Compiler
 AVR=avr-gcc
-DEBUGFLAGS=-g -O0
+DEBUGFLAGS=-g -Og 
 SIMFLAGS=-D_SIMULATE_
 # Place the section past the end of reachable memory
 MMCUSECTION=-Wl,--undefined=_mmcu,--section-start=.mmcu=910000 
@@ -83,7 +83,7 @@ debug: $(PATHO)main.elf
 	@pkill simavr
 
 test: $(PATHO)main.elf
-	@sed -i "s/break main.c:.*/break main.c:$(WHILELINENO)/" $(INITDEBUGGER)
+	@sed -i ".bak" "s/break main.c:.*/break main.c:$(WHILELINENO)/" $(INITDEBUGGER)
 	$(SIMAVR) -g -mmcu=$(MMCU) -f $(FREQ) $< &
 	$(GDB) $(TESTING)
 	@pkill simavr

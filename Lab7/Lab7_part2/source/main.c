@@ -1,4 +1,4 @@
-/*	Author: ikang005
+/*	Author: lab
  *  Partner(s) Name: 
  *	Lab Section:
  *	Assignment: Lab #  Exercise #
