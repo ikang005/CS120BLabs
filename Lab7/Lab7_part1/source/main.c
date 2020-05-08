@@ -194,11 +194,12 @@ int main(void)
         Tick();
         while(!TimerFlag);
         TimerFlag = 0;
-        PORTB = s;
+        PORTB = st;
 	LCD_Cursor(1);
 	LCD_WriteData(tmp + '0');
     }
     return 0;
 }
+
 
 
