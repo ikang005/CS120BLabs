@@ -18,6 +18,7 @@ enum States{Start, Init, Inc, Dec, Wait, Reset} state;
 unsigned char button;
 unsigned char tmp;
 unsigned char i;
+unsigned char st;
 
 volatile unsigned char TimerFlag = 0;
 
@@ -136,11 +137,12 @@ void Tick(){
     }
     switch(state){
         case Start:
-            tmp = 0x07;
+            tmp = 0x00;
             break;
         case Init:
-            tmp = 0x07;
+            tmp = 0x00;
             i = 0;
+	    st = 1;
             break;
         case Inc:
             if(tmp < 0x09 && i == 10){
@@ -148,6 +150,7 @@ void Tick(){
                 i = 0;
             }
             i++;
+	    st = 2;
             break;
         case Dec:
             if(tmp > 0x00 && i == 10){
@@ -155,16 +158,19 @@ void Tick(){
                 i = 0;
             }
             i++;
+	    st = 3;
             break;
         case Wait:
             i = 0;
+	    st = 4;
             break;
         case Reset:
             tmp = 0x00;
             i = 0;
+	    st = 5;
             break;
         default:
-            tmp = 0x07;
+            tmp = 0x00;
             i = 0;
             break;
     }
@@ -181,14 +187,14 @@ int main(void)
     TimerSet(100);
     TimerOn();
     tmp = 0x07;
-    state = start;
+    state = Init;
     
     while(1){
         button = ~PINA & 0x03;
         Tick();
         while(!TimerFlag);
         TimerFlag = 0;
-        PORTB = tmp;
+        PORTB = s;
 	LCD_Cursor(1);
 	LCD_WriteData(tmp + '0');
     }
