@@ -22,21 +22,19 @@ int main(void) {
     DDRB = 0xFF; PORTB = 0x00;
     DDRD = 0xFF; PORTD = 0x00;
     
-    unsigned short led_short;
-    unsigned char ledC;
-    unsigned short ledMax = 0x02FF;
-
     ADC_init();
+
+    unsigned short convADC;
+    unsigned short ledMax = 0x0C7;
     
     while (1) {
-        led_short = ADC;
-        if (s >= ledMax / 2){
-            ledC = 0x01;
+        convADC = ADC;
+        if (convADC >= ledMax / 2){
+            PORTB = 0x01;
         }
         else{
-            ledC = 0x00;
+            PORTB = 0x00;
         }
-        PORTB = ledC;
     }
     return 1;
 }

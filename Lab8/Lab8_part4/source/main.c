@@ -14,47 +14,48 @@
 #endif
 
 void ADC_init() {
-    ADCSRA |= (1 << ADEN) | (1 << ADSC) | (1 << ADATE);
-}
+     ADCSRA |= (1 << ADEN) | (1 << ADSC) | (1 << ADATE);
+ }
 
-int main(void) {
-    DDRA = 0x00; PORTA = 0xFF;
-    DDRB = 0xFF; PORTB = 0x00;
-    DDRD = 0xFF; PORTD = 0x00;
-    
-    unsigned short led_short >= ADC;
-    unsigned char ledC = 0;
-    unsigned short ledledMax = 0x02FF;
-
-    ADC_init();
-    
-    while (1) {
-        led_short >= ADC;
-        if (led_short > ledMax/8 && led_short < ledMax/4) {
-            ledC = 0x03;
-        }
-        else if (led_short > ledMax/4 && led_short < ledMax*3/8) {
-            ledC = 0x07;
-        }
-        else if (led_short > ledMax*3/8 && led_short < ledMax/2) {
-            ledC = 0x0F;
-        }
-        else if (led_short > ledMax/2 && led_short < ledMax*5/8) {
-            ledC = 0x1F;
-        }
-        else if (led_short > ledMax*5/8 && led_short < ledMax*3/4) {
-            ledC = 0x3F;
-        }
-        else if (led_short > ledMax*3/4 && led_short < ledMax*7/8) {
-            ledC = 0x7F;
-        }
-        else if (led_short > ledMax*7/8) {
-            ledC = 0xFF;
-        }
-        else {
-            ledC = 0x01;
-        }
-        PORTB = ledC;
-    }
-    return 1;
-}
+ int main(void)
+ {
+     DDRB = 0xFF;
+     DDRD = 0xFF;
+     
+     ADC_init();
+     unsigned short convADC = 0x0000;
+     unsigned short max = (0x0C7);
+     unsigned short tmp = (max)/8;
+     
+     while (1)
+     {
+         convADC = ADC;
+         if(convADC > (tmp*7)){
+             PORTB = 0xFF;
+         }
+         else if(convADC > (tmp*6)){
+             PORTB = 0x7F;
+         }
+         else if(convADC > (tmp*5)){
+             PORTB = 0x3F;
+         }
+         else if(convADC > (tmp*4)){
+             PORTB = 0x1F;
+         }
+         else if(convADC > (tmp*3)){
+             PORTB = 0x0F;
+         }
+         else if(convADC > (tmp*2)){
+             PORTB = 0x07;
+         }
+         else if(convADC > (tmp*1)){
+             PORTB = 0x03;
+         }
+         else if(convADC > (tmp*0)){
+             PORTB = 0x01;
+         }
+         else{
+             PORTB = 0x00;
+         }
+     }
+ }

@@ -22,17 +22,18 @@ int main(void) {
     DDRB = 0xFF; PORTB = 0x00;
     DDRD = 0xFF; PORTD = 0x00;
     
-    unsigned short led_short;
-    unsigned char ledC, ledD;
-
     ADC_init();
+
+    unsigned short convADC;
+    unsigned char ledB;
+    unsigned char ledD;
     
     while (1) {
-        led_short = ADC;
-        ledC = (char)s;
-        ledD = (char) ((s >> 4) & 0x0F);
+        convADC = ADC;
+        ledB = (char)convADC;
+        ledD = (char) ((convADC >> 8) & 0x0F);
         
-        PORTB = ledC;
+        PORTB = ledB;
         PORTD = ledD;
     }
     return 1;
