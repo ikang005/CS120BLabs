@@ -7,6 +7,9 @@
  *    I acknowledge all content contained herein, excluding template or example
  *    code, is my own original work.
  */
+
+//Demo:
+
 #include <avr/io.h>
 #ifdef _SIMULATE_
 #include "simAVRHeader.h"
@@ -38,7 +41,7 @@ typedef struct task{
 } task;
 
 enum keypad_states {keypad};
-int keypadSMTick(int state){
+int Keypad(int state){
     x = GetKeypadKey();
     switch(state){
         case keypad:
@@ -75,7 +78,7 @@ int keypadSMTick(int state){
 }
 
 enum lcd_states {display, press};
-int lcdSMTick(int state) {
+int LCD(int state) {
     static char temp;
     switch(state){
         case display:
@@ -121,13 +124,13 @@ int main(void){
     task1.state = display;
     task1.period = 250;
     task1.elapsedTime = task1.period;
-    task1.TickFct = &lcdSMTick;
+    task1.TickFct = &LCD;
 
     //Task 2
     task2.state = keypad;
     task2.period = 10;
     task2.elapsedTime = task2.period;
-    task2.TickFct = &keypadSMTick;
+    task2.TickFct = &Keypad;
 
     unsigned long GCD = tasks[0]->period;
     for(i = 1; i < numTasks; i++) {
@@ -150,4 +153,3 @@ int main(void){
     }
     return 0;
 }
-
