@@ -147,115 +147,155 @@ int main(void){
 }
 */
 
-/*
- * lab011_2.c
- *
- * Created: 2/21/2019 4:23:27 PM
- * Author : Administrator
- */ 
-
 #include <avr/io.h>
-#include <io.h>
-#include <timer.h>
-#include <scheduler.h>
+#include "io.c"
+#include <avr/interrupt.h>
+#ifdef _SIMULATE_
+#endif
 
-unsigned char stuff[] = "CS120B is Legend... wait for it DARY!";
+unsigned int counter=0;
+ unsigned char word[]={' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','C','S','1','2','0','B',' ','i','s',' ','L','e','g','e','n','d','.','.','.',' ','w','a','i','t',' ','f','o','r',' ','i','t',' ','D','A','R','Y','!'};
+unsigned int i=0; 
+
+typedef struct _task {
+	signed char state;
+	unsigned long int period;
+	unsigned long int elapsedTime;
+	int (*TickFct)(int);
+} task;
 
 
-enum State {SCROLL};
-int Tick(int state){
-        static unsigned char scroll = 16;
-        static unsigned char disp = 0;
-        static unsigned long offset_trigger = 0; 
-        static unsigned long offset = 0;
-        static unsigned long character_pos = 0 ;
-        static unsigned long i = 0; 
-        //static unsigned long j = 0;
-        
-        unsigned long mess_length = sizeof(stuff)/sizeof(stuff[0]) ;
-    switch(state){
-        case SCROLL:
-                
-               // scroll = 15;
-                LCD_ClearScreen();
-                LCD_Cursor(16);
-                
-               // for(int i = 0; i < (mess_length + 15); ++i){
-                   if(i < (mess_length + 15)){
-                        ++i;
-                    //LCD_ClearScreen();
-                    for(int j = 16; j > scroll; --j){
-                        if( (character_pos = (j-scroll-1 + offset) ) >= (mess_length - 1) ) disp = 32;
-                        else disp = stuff[character_pos];
-                        
-                        LCD_Cursor(j);
-                        LCD_WriteData(disp);
-                        
-                    }
-                    //while(!TimerFlag);
-                    //TimerFlag = 0;
-                    
-                    if(scroll) --scroll;
-                    ++offset_trigger;
-                    if(offset_trigger >= 16) {
-                        ++offset;
-                    }                   
-                }else {
-                    i = 0; 
-                    scroll = 15;
-                    offset = 0;
-                offset_trigger = 0;}
-        default: 
-            state = SCROLL;
-        break;
-    }
-    return state;
+int KeyPadTask(int state){
+	
+	state=GetKeypadKey();
+	
+	switch(state){
+		case '\0': PORTA = 0x1F; break;
+		case '0': PORTA = 0x00; break;
+		case '1': PORTA = 0x01; break;
+		case '2': PORTA = 0x02; break;
+		case '3': PORTA = 0x03; break;
+		case '4': PORTA = 0x04; break;
+		case '5': PORTA = 0x05; break;
+		case '6': PORTA = 0x06; break;
+		case '7': PORTA = 0x07; break;
+		case '8': PORTA = 0x08; break;
+		case '9': PORTA = 0x09; break;
+		case 'A': PORTA = 0x0A; break;
+		case 'B': PORTA = 0x0B; break;
+		case 'C': PORTA = 0x0C; break;
+		case 'D': PORTA = 0x0D; break;
+		case '*': PORTA = 0x0E; break;
+		case '#': PORTA = 0x0F; break;
+		default: PORTA = 0x1B; break;
+	}
+	return state;
 }
 
-int main(void)
+enum Display_states {Display_1,Display_2,Display_3};
+	
+int Display_Task(int state){
+switch(state){
+	case Display_1:
+	LCD_WriteCommand(0x80);
+	LCD_WriteCommand(0x01);
+	
+	
+	for(i=0;i<18;i++){
+	LCD_WriteData(word[counter+i]);
+	}
+	state=Display_2;
+	break;	
+	case Display_2:
+	if(counter<37){
+	counter=counter+1;
+	state=Display_1;
+	}
+	else{
+	counter=0;
+	state=Display_3;
+	}
+	break;
+	case Display_3:
+	if(counter<5){
+	counter=counter+1;
+	state=Display_3;
+	}
+	else{
+	counter=0;
+	state=Display_1;}
+	break;	
+	default:
+	
+	break;	
+		}
+switch(state){
+	case Display_1:
+	break;
+	case Display_2:
+	break;
+	case Display_3:
+	break;
+}
+return state;
+}
+
+unsigned long int findGCD(unsigned long int a,unsigned long int b){
+	unsigned long int c;
+	while(1){
+		c=a%b;
+		if(c==0){return b;}
+		a=b;
+		b=c;
+	}
+	return 0;
+}
+
+int main()
 {
-    DDRA = 0xFF; PORTC = 0x00;
-    DDRB = 0xFF; PORTC = 0x00;
-    DDRC = 0xF0; PORTC = 0x0F; // LCD data lines
-    DDRD = 0xFF; PORTD = 0x00; // LCD control lines
-      
-    unsigned long period = 1;  
-    TimerSet(400);
-    TimerOn();
-    TimerFlag = 0;
-      
-    static task task0;
-    task0.elapsedTime = period;
-    task0.period = period;
-    task0.state = -1;
-    task0.TickFct = &Tick; 
-    
-    task *tasks[] = {&task0};
-    //unsigned char stuff[] = "Matthew is Legend... wait for it DARY!";
-    const unsigned short numTasks = sizeof(tasks)/sizeof(task*);
-    // Initializes the LCD display
-    LCD_init();
-    LCD_ClearScreen();
-    int i = 0;
-    while (1) 
-    {  
-        for ( i = 0; i < numTasks; i++ ) {
-            // Task is ready to tick
-            if ( tasks[i]->elapsedTime == tasks[i]->period ) {
-                // Setting next state for task
-                tasks[i]->state = tasks[i]->TickFct(tasks[i]->state);
-                // Reset the elapsed time for next tick.
-                tasks[i]->elapsedTime = 0;
-            }
-            tasks[i]->elapsedTime += 1;
-        }
-        while(!TimerFlag);
-        TimerFlag = 0;
-   }
+	DDRA=0xFF; PORTA=0x00;
+	DDRB=0xF0; PORTB=0x0F;
+	DDRC=0xFF; PORTC=0x00;
+	DDRD=0xFF; PORTD=0x00;
+	
+	static task task1, task2;
+	task *tasks[] = {&task1, &task2};
+	const unsigned short numTasks = sizeof(tasks)/sizeof(task*);
 
-    // Error: Program should not exit!
-    return 0;
-    
-              
+	task1.state = '\0';
+	task1.period = 50;
+	task1.elapsedTime = task1.period;
+	task1.TickFct = &KeyPadTask;
+	
+
+	task2.state = Display_1;
+	task2.period = 200;
+	task2.elapsedTime = task2.period;
+	task2.TickFct = &Display_Task;
+
+
+	unsigned short i;
+	unsigned long GCD = tasks[0]->period;
+	for(i=1;i<numTasks;i++){
+		GCD = findGCD(GCD,tasks[i]->period);
+	}
+	
+	TimerSet(GCD);
+	TimerOn();
+	LCD_init();
+	LCD_ClearScreen();
+
+	while (1)
+	{
+		for(i=0;i<numTasks;i++){
+			if( tasks[i]->elapsedTime == tasks[i]->period){
+				tasks[i]->state = tasks[i]->TickFct(tasks[i]->state);
+				tasks[i]->elapsedTime = 0;
+			}
+			tasks[i]->elapsedTime += GCD;
+		}
+		while(!TimerFlag){};
+		TimerFlag=0;
+	}
+	return 0;
 }
-
