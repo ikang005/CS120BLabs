@@ -147,10 +147,10 @@ int main(void){
 }
 */
 
-#include <io.c>
+#include "io.h"
 #include <avr/io.h>
-#include <bit.h>
-#include <timer.h>
+#include "bit.h"
+#include "timer.h"
 #include <stdio.h>
 
 #define LCD_SIZE 16
