@@ -1,788 +1,857 @@
+/*
+ *
+ *
+ * Created: 8/11/2016 7:49:45 PM
+ *  Author: along002
+ */
+
+
 #include <avr/io.h>
+#include <avr/interrupt.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include "bit.h"
-#include "io.c"
 #include "timer.h"
-
-/*
-Samuel Hwang's CS120B Project (Switzerland Summer Study Abroad Program 2015)
-Professor: Philip Brisk
-TA: Jeffery McDaniels
-
-Instructions: The game opens with the main menu. There are two options possible from this screen:
-1) Press the button D7 will start one player mode.
-2) Press the 'D' on the keypad will start two player mode.
-
-During the game, the cursor can move up and down using D1 (up) and D4 (down) to avoid obstacles '@', '#', and '|'.
-It is possible to shoot and destroy '|' if the player presses the missile button D3. The missile will launch across the screen and destroy '|'.
-As time progresses, the game will move at a much faster pace. Everything, the car, obstacles, and the missiles, will move faster.
-The game ends when the cursor touches any obstacle. The "Game Over!" screen flashes for two seconds and displays the score.
-Score is accumulated by the amount of blocks passed.
-
-From the score screen there are two options:
-1) Pressing the button D7 will return to the main menu.
-2) Pressing the up or down (D1 or D4 respectively) will restart the game from whatever setting it was on before. (1 player or 2 players)
-
-Two player mode uses both the buttons connected to PIND and the keypad connected to PINC.
-The objective of player two is to shoot missiles to throw off player one. But, the missiles from player two move six times slower.
-If player two's missiles connect, player 1 loses and the screen goes to the "Game Over!" screen and then the score screen.
-Like one player mode, there are two options from the score screen:
-1) Pressing D7 will return to the main menu.
-2) Pressing the up or down (D1 or D4 respectively) will restart the game from whatever setting it was on before. (1 player or 2 players)
-*/
-
-unsigned char GetKeypadKey() {
-    // Check keys in col 1
-    // Enable col 4 with 0, disable others with 1�s
-    // The delay allows PORTC to stabilize before checking
-    PORTC = 0xEF;
-    asm("nop");
-    if (GetBit(PINC,0)==0) { return('1'); }
-    if (GetBit(PINC,1)==0) { return('4'); }
-    if (GetBit(PINC,2)==0) { return('7'); }
-    if (GetBit(PINC,3)==0) { return('*'); }
-    // Check keys in col 2
-    // Enable col 5 with 0, disable others with 1�s
-    // The delay allows PORTC to stabilize before checking
-    PORTC = 0xDF;
-    asm("nop");
-    if (GetBit(PINC,0)==0) { return('2'); }
-    if (GetBit(PINC,1)==0) { return('5'); }
-    if (GetBit(PINC,2)==0) { return('8'); }
-    if (GetBit(PINC,3)==0) { return('0'); }
-    // Check keys in col 3
-    // Enable col 6 with 0, disable others with 1�s
-    // The delay allows PORTC to stabilize before checking
-    PORTC = 0xBF;
-    asm("nop");
-    if (GetBit(PINC,0)==0) { return('3'); }
-    if (GetBit(PINC,1)==0) { return('6'); }
-    if (GetBit(PINC,2)==0) { return('9'); }
-    if (GetBit(PINC,3)==0) { return('#'); }
-    // Check keys in col 4
-    PORTC = 0x7F;
-    if (GetBit(PINC,0)==0) { return('A'); }
-    if (GetBit(PINC,1)==0) { return('B'); }
-    if (GetBit(PINC,2)==0) { return('C'); }
-    if (GetBit(PINC,3)==0) { return('D'); }
-    return('\0'); // default value
-}
-
-unsigned long int findGCD (unsigned long int a, unsigned long int b)
-{
-    unsigned long int c;
-    while(1)
-    {
-        c = a%b;
-        if(c == 0){return b;}
-        a = b;
-        b = c;
-    }
-    return 0;
-}
-
-typedef struct _task
-{
-    signed char state;
-    unsigned long int period;
-    unsigned long int elapsedTime;
-
-    int (*TickFct)(int);
+#include "io.h"
+#include "keypad.h"
+typedef struct _task {
+    /*Tasks should have members that include: state, period,
+        a measurement of elapsed time, and a function pointer.*/
+    signed char state; //Task's current state
+    unsigned long int period; //Task period
+    unsigned long int elapsedTime; //Time elapsed since last task tick
+    int (*TickFct)(int); //Task tick function
 } task;
-
-//Global Variables
-unsigned char x = '\0';
-unsigned char stringStart[30] = "Sam's CS120B    Final Project";
-unsigned char stringEnd[11] = "Game Over!";
-unsigned char stringScore[8] = "Score:";
-unsigned char cursorPosition = 1;
-unsigned char cursorPosition2 = 16;
-unsigned char obstacle1Position = 0;
-unsigned char obstacle2Position = 0;
-unsigned char obstacle3Position = 0;
-unsigned char obstacle4Position = 0;
-unsigned char bulletPosition = 0;
-unsigned char bulletHit3 = 10;
-unsigned char bulletHit4 = 10;
-unsigned char laserPosition = 0;
-unsigned long holdDisplayCount = 0;
-unsigned char noInputCount = 0;
-unsigned char speedControl = 4;
-unsigned char speed = 0;
-unsigned long score = 0;
-unsigned char showScore = 0;
-unsigned char showScorePosition;
-unsigned char randomNumber;
-unsigned long slowDown = 0;
-unsigned char laserCount = 3;
-unsigned long holdCount = 0;
-unsigned short player2option = 0;
-
-enum gameState{start, displayString1, gameStart, gameOver, displayString2, displayScore, holdStart, holdGame} display;
-
-int SMTick1 (int display)
-{
-    unsigned char button = (~PIND) & 0x80;
-    unsigned char up = (~PIND) & 0x02;
-    unsigned char down = (~PIND) & 0x10;
-    x = GetKeypadKey();
-    switch(display)
-    {
-        case start:
-        LCD_DisplayString(1, stringStart);
-        LCD_Cursor(0);
-        player2option = 0;
-        display = displayString1;
-        break;
-        
-        case displayString1:
-        if(button)
-        {
-            LCD_ClearScreen();
-            display = gameStart;
-        }
-        else if(x == 'D')
-        {
-            LCD_ClearScreen();
-            player2option = 1;
-            display = gameStart;
-        }
-        else
-        {
-            display = displayString1;
-        }
-        break;
-
-        case gameStart:
-        if(cursorPosition == obstacle1Position || cursorPosition == obstacle2Position || cursorPosition == obstacle3Position || cursorPosition == obstacle4Position || laserPosition == cursorPosition)
-        {
-            display = displayString2;
-        }
-        else
-        {
-            LCD_Cursor(cursorPosition);
-            if(up)
-            {
-                cursorPosition = 1;
-            }
-            else if(down)
-            {
-                cursorPosition = 17;
-            }
-        }
-        break;
-        
-        case displayString2:
-        if(holdDisplayCount < 500)
-        {
-            holdDisplayCount++;
-        }
-        else
-        {
-            holdDisplayCount = 0;
-            LCD_ClearScreen();
-            LCD_DisplayString(1, stringEnd);
-            display = gameOver;
-        }
-        break;
-
-        case gameOver:
-        if(holdDisplayCount < 2000)
-        {
-            holdDisplayCount++;
-        }
-        else
-        {
-            showScorePosition = 7;
-            LCD_DisplayString(1, stringScore);
-            while(score > 100)
-            {
-                showScore++;
-                score = score - 100;
-            }
-            if(showScore != 0)
-            {
-                LCD_Cursor(showScorePosition);
-                LCD_WriteData(showScore + '0');
-                showScore = 0;
-                showScorePosition++;
-            }
-            
-            while(score > 10)
-            {
-                showScore++;
-                score = score - 10;
-            }
-            LCD_Cursor(showScorePosition);
-            LCD_WriteData(showScore + '0');
-            showScore = 0;
-            showScorePosition++;
-            
-            while(score > 1)
-            {
-                showScore++;
-                score = score - 1;
-            }
-            LCD_Cursor(showScorePosition);
-            LCD_WriteData(showScore + '0');
-            showScore = 0;
-            showScorePosition++;
-            
-            score = 0;
-            display = displayScore;
-            holdDisplayCount = 0;
-            cursorPosition = 1;
-        }
-        break;
-        
-        case displayScore:
-        if(holdDisplayCount < 2000)
-        {
-            holdDisplayCount++;
-        }
-        else if(up || down)
-        {
-            holdDisplayCount = 0;
-            display = holdGame;
-        }
-        else if(button)
-        {
-            holdDisplayCount = 0;
-            display = holdStart;
-        }
-        else
-        {
-            display = displayScore;
-        }
-        break;
-        
-        case holdStart:
-        if(button)
-        {
-            display = holdStart;
-        }
-        else
-        {
-            display = start;
-        }
-        break;
-        
-        case holdGame:
-        if(up || down)
-        {
-            display = holdGame;
-        }
-        else
-        {
-            display = gameStart;
-        }
-        break;
-        
-        default:
-        display = start;
-        break;
-
+struct wall {
+    unsigned char xposition;
+    unsigned char yposition0;
+    unsigned char yposition1;
+    unsigned char yposition2;
+    unsigned char yposition3;
+};
+struct wall walls[100];
+struct wall fire1;
+struct wall player2_fire1;
+void car_top(){ //http://solar-blogg.blogspot.com/2009/02/displaying-custom-5x8-characters-on.html
+    LCD_Cursor(0);
+    LCD_WriteCommand(0x40 + 0); //Set character RAM address to zero
+    LCD_WriteData(0b10000); //Define our first character
+    LCD_WriteData(0b11100);
+    LCD_WriteData(0b11110);
+    LCD_WriteData(0b11111);
+    LCD_WriteData(0x00);
+    LCD_WriteData(0x00);
+    LCD_WriteData(0x00);
+    LCD_WriteData(0x00);
+}
+//LCD_WriteData(0x00)
+void car_bot(){
+    LCD_Cursor(0);
+    LCD_WriteCommand(0x40 + 8); //Set character RAM address to zero
+    LCD_WriteData(0x00); //Define our first character
+    LCD_WriteData(0x00); //row2
+    LCD_WriteData(0x00); //row3
+    LCD_WriteData(0x00); //row4
+    LCD_WriteData(0b10000); //row5
+    LCD_WriteData(0b11100); //row6
+    LCD_WriteData(0b11110); //row7
+    LCD_WriteData(0b11111); //row8
+}
+//LCD_WriteData(0x01)
+void obstacle3(){
+    LCD_Cursor(0);
+    LCD_WriteCommand(0x40 + 16); //Set character RAM address to zero
+    LCD_WriteData(0x1F); //Define our first character
+    LCD_WriteData(0x1F); //row2
+    LCD_WriteData(0x1F); //row3
+    LCD_WriteData(0x1F); //row4
+    LCD_WriteData(0x00); //row5
+    LCD_WriteData(0x00); //row6
+    LCD_WriteData(0x00); //row7
+    LCD_WriteData(0x00); //row8
+}
+//LCD_WriteData(0x02)
+void obstacle4(){
+    LCD_Cursor(0);
+    LCD_WriteCommand(0x40 + 24); //Set character RAM address to zero
+    LCD_WriteData(0x00); //Define our first character
+    LCD_WriteData(0x00); //row2
+    LCD_WriteData(0x00); //row3
+    LCD_WriteData(0x00); //row4
+    LCD_WriteData(0x1F); //row5
+    LCD_WriteData(0x1F); //row6
+    LCD_WriteData(0x1F); //row7
+    LCD_WriteData(0x1F); //row8
+}
+//LCD_WriteData(0x03)
+void car_top_obstacle(){
+    LCD_Cursor(0);
+    LCD_WriteCommand(0x40 + 32);
+    LCD_WriteData(0b10000); //Define our first character
+    LCD_WriteData(0b11100); //row2
+    LCD_WriteData(0b11110); //row3
+    LCD_WriteData(0b11111); //row4
+    LCD_WriteData(0b11111); //row5
+    LCD_WriteData(0b11111); //row6
+    LCD_WriteData(0b11111); //row7
+    LCD_WriteData(0b11111); //row8
+}
+//LCD_WriteData(0x04)
+void car_bot_obstacle(){
+    LCD_Cursor(0);
+    LCD_WriteCommand(0x40 + 40);
+    LCD_WriteData(0b11111); //Define our first character
+    LCD_WriteData(0b11111); //row2
+    LCD_WriteData(0b11111); //row3
+    LCD_WriteData(0b11111); //row4
+    LCD_WriteData(0b10000); //row5
+    LCD_WriteData(0b11100); //row6
+    LCD_WriteData(0b11110); //row7
+    LCD_WriteData(0b11111); //row8
+}
+//LCD_WriteData(0x05)
+void broken_obs(){
+    LCD_Cursor(0);
+    LCD_WriteCommand(0x40 + 48);
+    LCD_WriteData(0b11101); //Define our first character
+    LCD_WriteData(0b01111); //row2
+    LCD_WriteData(0b10111); //row3
+    LCD_WriteData(0b11011); //row4
+    LCD_WriteData(0b01101); //row5
+    LCD_WriteData(0b10011); //row6
+    LCD_WriteData(0b01111); //row7
+    LCD_WriteData(0b10111); //row8
+}
+//LCD_WriteData(0x06)
+void Generate_Terrain(){
+    for(unsigned char i = 0; i < 100; ++i){
+        walls[i].xposition = (i * 2) + 16;
     }
-    return display;
+    for(unsigned char i = 0; i < 100; ++i){
+        int r1 = (rand() % 10);// generate random numbers
+        int r2 = (rand() % 10);
+        int r3 = (rand() % 10);
+        int r4 = (rand() % 10);
+        
+        r1 = (r1 > 1) ? 1 : 0;
+        r2 = (r2 > 1) ? 0 : 1;
+        r3 = (r3 > 1) ? 1 : 0;
+        r4 = (r4 > 1) ? 1 : 0;
+        
+        int r5 = (rand() % 100);
+        int r6 = (rand() % 100);
+        if(r5 > 1 && r5 < 20){
+            r1 = 3;
+            r2 = 3;
+        }
+        if(r6 > 1 && r6 < 20){
+            r3 = 3;
+            r4 = 3;
+        }
+        walls[i].yposition0 = r1 + '0';
+        walls[i].yposition1 = r2 + '0';
+        walls[i].yposition2 = r3 + '0';
+        walls[i].yposition3 = r4 + '0';
+                    
+        if(walls[i].yposition0 == '1' && walls[i].yposition1 == '1' && walls[i].yposition2 == '1'
+                && walls[i].yposition3 == '1'){
+            walls[i].yposition2 = '0';
+        }/*
+        if(walls[i].yposition0 == '0' && walls[i].yposition1 == '0' && walls[i].yposition2 == '0'
+                && walls[i].yposition3 == '0'){
+        walls[i].yposition0 = '1';
+        walls[i].yposition3 = '1';
+        }*/
+    }
 }
 
-enum opponentAction{begin, movement, hold, holdStart2, holdGame2} position;
-
-int SMTick2 (int position)
-{
-    unsigned char button2 = (~PIND) & 0x80;
-    unsigned char up2 = (~PIND) & 0x02;
-    unsigned char down2 = (~PIND) & 0x10;
-    x = GetKeypadKey();
-    switch(position)
-    {
-        case begin:
-        if(x == 'D')
-        {
-            position = movement;
-        }
-        else
-        {
-            position = begin;
-        }
-        break;
-        
-        case movement:
-        if(cursorPosition == obstacle1Position || cursorPosition == obstacle2Position || cursorPosition == obstacle3Position || cursorPosition == obstacle4Position || laserPosition == cursorPosition)
-        {
-            slowDown = 0;
-            laserCount = 3;
-            cursorPosition2 = 16;
-            position = hold;
-        }
-        //to move opponent up and down
-        if(x == '5')
-        {
-            cursorPosition2 = 16;
-        }
-        else if(x == '8')
-        {
-            cursorPosition2 = 32;
-        }
-        //to read in laser input (ONLY HAS 3 LASERS)
-        if(x == '*')
-        {
-            if(!laserPosition && laserCount)
-            {
-                if(cursorPosition2 == 16)
-                {
-                    laserPosition = 15;
-                    laserCount--;
-                }
-                else if(cursorPosition2 == 32)
-                {
-                    laserPosition = 31;
-                    laserCount--;
-                }
+int cnt = -16;
+unsigned char pause1,playerpos,SameFlag,PauseFlag,delete2,Lost_Animation,Lost_Animation_Elapsed,Fire_Button,playerpos2,player2_fire = 0;
+unsigned long Seed;
+int x = 0;
+int period1 = 3;
+enum States0{wait0,pausewait,wait,up,down,fire,pause,player2_down,player2_up,player2_fire_button,soft_reset} State0;
+int button(int state){
+    switch(State0){
+        case wait0:
+            pause1 = 4;
+            ++Seed;
+            if(~PINB & 0x04){
+                State0 = pausewait;
             }
-        }
+            else{
+                State0 = wait0;
+                }
         break;
         
-        case hold:
-        if(holdCount < 4500)
-        {
-            holdCount++;
-        }
-        else if(up2 || down2)
-        {
-            position = holdGame2;
-            holdCount = 0;
-        }
-        else if(button2)
-        {
-            position = holdStart2;
-            holdCount = 0;
-        }
-        else
-        {
-            laserPosition = 0;
-            position = hold;
-        }
-        break;
-        
-        case holdStart2:
-        if(button2)
-        {
-            position = holdStart2;
-        }
-        else
-        {
-            position = begin;
-        }
-        break;
-        
-        case holdGame2:
-        if(up2 || down2)
-        {
-            position = holdGame2;
-        }
-        else
-        {
-            position = movement;
-        }
-        break;
-        
-        default:
-        position = begin;
-        break;
-        
-    }
-    return position;
-}
-
-enum moveObstacles{init, startMove, explosion, noInput, holdStart3, holdGame3} state;
-
-int SMTick3(int state)
-{
-    unsigned char button3 = (~PIND) & 0x80;
-    unsigned char up3 = (~PIND) & 0x02;
-    unsigned char down3 = (~PIND) & 0x10;
-    unsigned char bullet = (~PIND) & 0x08;
-    x = GetKeypadKey();
-    switch(state)
-    {
-        case init:
-        if(button3 || x == 'D')
-        {
-            state = startMove;
-        }
-        else
-        {
-            state = init;
-        }
-        break;
-
-        case startMove:
-        if(speedControl <= 0)
-        {
-            randomNumber = rand() % 15 + 1;
-            if(cursorPosition == obstacle1Position || cursorPosition == obstacle2Position || cursorPosition == obstacle3Position || cursorPosition == obstacle4Position || cursorPosition == laserPosition)
-            {
-                speed = 0;
-                speedControl = 4;
-                obstacle1Position = 0;
-                obstacle2Position = 0;
-                obstacle3Position = 0;
-                obstacle4Position = 0;
-                bulletPosition = 0;
-                state = explosion;
+        case pausewait:
+            Fire_Button = 0;
+            if(~PINB & 0x04){
+                State0 = pausewait;
             }
-            else
-            {
+            else{
+                srand(Seed);
+                pause1 = 0;
                 LCD_ClearScreen();
-                LCD_Cursor(cursorPosition); //buffer
-
-                //bullet projectile if one does not exist
-                if(bullet)
-                {
-                    if(!bulletPosition)
-                    {
-                        if(cursorPosition == 17)
-                        {
-                            bulletPosition = 18;
-                        }
-                        else
-                        {
-                            bulletPosition = 2;
-                        }
-                    }
-                }
-
-                //releases obstacles
-                if(obstacle1Position == 0 && obstacle3Position == 0)
-                {
-                    if(randomNumber <= 6 && obstacle2Position <= 27)
-                    {
-                        obstacle1Position = 16;
-                    }
-                    else if(randomNumber == 7)
-                    {
-                        obstacle3Position = 16;
-                    }
-                }
-                if(obstacle2Position == 0 && obstacle4Position == 0)
-                {
-                    if(randomNumber >= 9 && obstacle1Position <= 12)
-                    {
-                        obstacle2Position = 32;
-                    }
-                    
-                    else if(randomNumber == 8)
-                    {
-                        obstacle4Position = 32;
-                    }
-                }
-                
-                //display objects
-                LCD_Cursor(obstacle1Position);
-                LCD_WriteData('@');
-                LCD_Cursor(obstacle2Position);
-                LCD_WriteData('#');
-                LCD_Cursor(obstacle3Position);
-                LCD_WriteData('|');
-                LCD_Cursor(obstacle4Position);
-                LCD_WriteData('|');
-                
-                //display opponent
-                if(player2option) {
-                LCD_Cursor(cursorPosition2);
-                LCD_WriteData('*');
-                LCD_Cursor(laserPosition);
-                LCD_WriteData('<');
-                }
-                
-                //display bullet
-                LCD_Cursor(bulletPosition);
-                LCD_WriteData('>');
-                
-                if(bulletPosition)
-                {
-                    if(bulletPosition < 15)
-                    {
-                        bulletPosition++;
-                    }
-                    else if(bulletPosition < 31 && bulletPosition > 17)
-                    {
-                        bulletPosition++;
-                    }
-                    else
-                    {
-                        bulletPosition = 0;
-                    }
-                    
-                    //animation when bullet hits obstacle 3 or 4
-                    if(obstacle3Position)
-                    {
-                        bulletHit3 = obstacle3Position - bulletPosition;
-                        if(bulletHit3 <= 1)
-                        {
-                            LCD_Cursor(obstacle3Position);
-                            LCD_WriteData('\0');
-                            obstacle3Position = 0;
-                            bulletPosition = 0;
-                        }
-                    }
-                    if(obstacle4Position)
-                    {
-                        bulletHit4 = obstacle4Position - bulletPosition;
-                        if(bulletHit4 <= 1)
-                        {
-                            LCD_Cursor(obstacle4Position);
-                            LCD_WriteData('\0');
-                            obstacle4Position = 0;
-                            bulletPosition = 0;
-                        }
-                    }
-                }
-
-                //moves obstacles and toggles speed
-                if(obstacle1Position > 1)
-                {
-                    obstacle1Position--;
-                    if(obstacle1Position == 1)
-                    {
-                        speed++;
-                    }
-                }
-                else
-                {
-                    obstacle1Position = 0;
-                }
-                if(obstacle2Position > 17)
-                {
-                    obstacle2Position--;
-                    if(obstacle2Position == 17)
-                    {
-                        speed++;
-                    }
-                }
-                else
-                {
-                    obstacle2Position = 0;
-                }
-                if(obstacle3Position > 1)
-                {
-                    obstacle3Position--;
-                    if(obstacle3Position == 1)
-                    {
-                        speed++;
-                    }
-                }
-                else
-                {
-                    obstacle3Position = 0;
-                }
-                if(obstacle4Position > 17)
-                {
-                    obstacle4Position--;
-                    if(obstacle4Position == 17)
-                    {
-                        speed++;
-                    }
-                }
-                else
-                {
-                    obstacle4Position = 0;
-                }
-                
-                if(slowDown >= 6)
-                {
-                    if(laserPosition)
-                    {
-                        if(laserPosition > 17)
-                        {
-                            laserPosition--;
-                        }
-                        else if(laserPosition == 16)
-                        {
-                            laserPosition = 0;
-                        }
-                        else if(laserPosition > 1)
-                        {
-                            laserPosition--;
-                        }
-                        else
-                        {
-                            laserPosition = 0;
-                        }
-                    }
-                    slowDown = 0;
-                }
-                else
-                {
-                    slowDown++;
-                }
-                //toggles speed of objects
-                if(speed < 2)
-                {
-                    speedControl = 3;
-                }
-                else if(speed < 5)
-                {
-                    speedControl = 2;
-                }
-                else if(speed < 7)
-                {
-                    speedControl = 1;
-                }
-                else
-                {
-                    speedControl = 0;
-                }
-                score++;
+                LCD_Cursor(1);
+                LCD_WriteData(0x00);
+                Generate_Terrain();
+                State0 = wait;
             }
-        }
-        else
-        {
-            speedControl--;
-        }
-        break;
-
-        case explosion:
-        if(cursorPosition == 1)
-        {
-            for(cursorPosition = 1; cursorPosition <= 8; cursorPosition++)
-            {
-                LCD_Cursor(cursorPosition);
-                LCD_WriteData('\0');
-                LCD_Cursor(cursorPosition + 16);
-                LCD_WriteData('\0');
+            break;
+            
+        case wait:
+            if (~PINB & 0x01 && pause1 != 3){
+                if(playerpos < 3){
+                    playerpos++;
+                    SameFlag = 1;
+                }
+                State0 = down;
             }
-            state = noInput;
-        }
-        else
-        {
-            for(cursorPosition = 17; cursorPosition <= 24; cursorPosition++)
-            {
-                LCD_Cursor(cursorPosition);
-                LCD_WriteData('\0');
-                LCD_Cursor(cursorPosition - 16);
-                LCD_WriteData('\0');
+            else if(~PINB & 0x02 && pause1 != 3){
+                if(playerpos > 0){
+                    playerpos--;
+                    SameFlag = 1;
+                }
+                State0 = up;
             }
-            state = noInput;
-        }
-        break;
-
-        case noInput:
-        if(noInputCount < 90)
-        {
-            noInputCount++;
-        }
-        else if(up3 || down3)
-        {
-            state = holdGame3;
-            noInputCount = 0;
-        }
-        else if(button3)
-        {
-            state = holdStart3;
-            noInputCount = 0;
-        }
-        else
-        {
-            state = noInput;
-        }
+            else if(~PINB & 0x04){
+                if(pause1 == 0){
+                    pause1 = 1;
+                }
+                else if(pause1 == 1){
+                    pause1 = 0;
+                }
+                else if(pause1 == 3){
+                    cnt = 0;
+                    pause1 = 0;
+                    playerpos = 0;
+                    SameFlag = 0;
+                    PauseFlag = 0;
+                    delete2 = 0;
+                    Lost_Animation_Elapsed = 0;
+                    Fire_Button = 0;
+                    playerpos2 = 0;
+                    player2_fire = 0;
+                    Seed += 20;
+                    srand(Seed);
+                    Generate_Terrain();
+                    LCD_Cursor(1);
+                    LCD_WriteData(0x00);
+                }
+                else{}
+                State0 = pause;
+            }
+            else if(~PINB & 0x08){
+                    fire1.xposition = 2;
+                    Fire_Button = 0;
+                    if(playerpos == 3 || playerpos == 2){
+                        fire1.yposition3 = '3';
+                        fire1.yposition2 = '3';
+                        fire1.yposition1 = '0';
+                        fire1.yposition0 = '0';
+                    }
+                    else if(playerpos == 0 || playerpos == 1){
+                        fire1.yposition3 = '0';
+                        fire1.yposition2 = '0';
+                        fire1.yposition1 = '3';
+                        fire1.yposition0 = '3';
+                    }
+                    if(fire1.xposition == player2_fire1.xposition || fire1.xposition - 1 == player2_fire1.xposition){
+                        if(fire1.yposition0 == player2_fire1.yposition0){
+                            player2_fire1.yposition0 = '0';
+                            player2_fire1.yposition1 = '0';
+                            //player2_fire1.yposition2 = '0';
+                            //player2_fire1.yposition3 = '0';
+                        }
+                        else if(fire1.yposition2 == player2_fire1.yposition2){
+                            player2_fire1.yposition2 = '0';
+                            player2_fire1.yposition3 = '0';
+                            //player2_fire1.yposition1 = '0';
+                            //player2_fire1.yposition0 = '0';
+                        }
+                        else{}
+                        player2_fire1.xposition = 0;
+                    }
+                state = fire;
+            }
+            else if(GetKeypadKey() == '4'){
+                playerpos2 = 1;
+                State0 = player2_down;
+            }
+            else if(GetKeypadKey() == '7'){
+                playerpos2 = 0;
+                State0 = player2_up;
+            }
+            else if(GetKeypadKey() == '8'){
+                player2_fire = 1;
+                State0 = player2_fire_button;
+            }
+            else if (GetKeypadKey() == 'D'){
+                    LCD_ClearScreen();
+                    cnt = 0;
+                    pause1 = 0;
+                    playerpos = 0;
+                    SameFlag = 0;
+                    PauseFlag = 0;
+                    delete2 = 0;
+                    Lost_Animation_Elapsed = 0;
+                    Fire_Button = 0;
+                    playerpos2 = 0;
+                    player2_fire = 0;
+                    Seed += 20;
+                    srand(Seed);
+                    Generate_Terrain();
+                    LCD_Cursor(1);
+                    LCD_WriteData(0x00);
+                    State0 = soft_reset;
+            }
+            else{State0 = wait;}
         break;
         
-        case holdStart3:
-        if(button3)
-        {
-            state = holdStart3;
-        }
-        else
-        {
-            state = init;
-        }
+        case player2_fire_button:
+            State0 = (GetKeypadKey() == '8') ? player2_fire_button : wait;
+        break;
+        case player2_down:
+            State0 = (GetKeypadKey() == '4') ? player2_down : wait;
         break;
         
-        case holdGame3:
-        if(up3 || down3)
-        {
-            state = holdGame3;
-        }
-        else
-        {
-            state = startMove;
-        }
+        case soft_reset:
+            State0 = (GetKeypadKey() == 'D') ? soft_reset : wait;
         break;
         
-        default:
-        state = init;
+        case player2_up:
+        State0 = (GetKeypadKey() == '4') ? player2_up : wait;
         break;
+        
+        case fire:
+            State0 = (~PINB & 0x08) ? fire : wait;
+        break;
+            
+        case up:
+            State0 = (~PINB & 0x01) ? up : wait;
+        break;
+        
+        case down:
+            State0 = (~PINB & 0x02) ? down : wait;
+        break;
+        
+        case pause:
+            State0 = (~PINB & 0x04) ? pause : wait;
+        break;
+        
+        default: break;
     }
     return state;
 }
 
-int main(void)
-{
-    DDRA = 0xFF; PORTA = 0x00; //data lines
-    DDRB = 0xFF; PORTB = 0x00; //control lines
-    DDRC = 0xF0; PORTC = 0x0F; //keypad input
-    DDRD = 0x00; PORTD = 0xFF; //player1
-
-    unsigned long int SMTick1_calc = 1;
-    unsigned long int SMTick2_calc = 1;
-    unsigned long int SMTick3_calc = 50;
-
-    unsigned long int tmpGCD = 1;
-    tmpGCD = findGCD(SMTick1_calc, SMTick2_calc);
-
-    unsigned long int GCD = tmpGCD;
-
-    unsigned long int SMTick1_period = SMTick1_calc/GCD;
-    unsigned long int SMTick2_period = SMTick2_calc/GCD;
-    unsigned long int SMTick3_period = SMTick3_calc/GCD;
-
-    static task task1, task2, task3;
-    task *tasks[] = {&task1, &task2, &task3};
-    const unsigned short numTasks = sizeof(tasks)/sizeof(task*);
-
-    task1.state = -1;
-    task1.period = SMTick1_period;
-    task1.elapsedTime = SMTick1_period;
-    task1.TickFct = &SMTick1;
-
-    task2.state = -1;
-    task2.period = SMTick2_period;
-    task2.elapsedTime = SMTick2_period;
-    task2.TickFct = &SMTick2;
-
-    task3.state = -1;
-    task3.period = SMTick3_period;
-    task3.elapsedTime = SMTick3_period;
-    task3.TickFct = &SMTick3;
-
-    LCD_init();
-
-    TimerSet(GCD);
-    TimerOn();
-    
-    srand(300);
-    
-    unsigned short i;
-    while(1) {
-        // Scheduler code
-        for ( i = 0; i < numTasks; i++ ) {
-            // Task is ready to tick
-            if ( tasks[i]->elapsedTime ==
-            tasks[i]->period ) {
-                // Setting next state for task
-                tasks[i]->state =
-                tasks[i]->TickFct(tasks[i]->state);
-                // Reset elapsed time for next tick.
-                tasks[i]->elapsedTime = 0;
+enum States{Init,Dec} State;
+int realtsk(int state){
+    switch(State){
+        case Init:
+            if(pause1 == 0){
+                State = Dec;
             }
-            tasks[i]->elapsedTime += 1;
+        break;
+        
+        case Dec:
+        if(x < 100){
+            ++x;
         }
-        while(!TimerFlag);
-        TimerFlag = 0;
+        if(x == 10){
+            period1 = 2;
+        }
+        if(x == 20){
+            period1 = 1;
+        }
+        if(x % period1 == 0){
+                if(player2_fire == 1){
+                    player2_fire = 0;
+                    player2_fire1.xposition = 15;
+                    if(playerpos2 == 0){
+                        player2_fire1.yposition0 = '3';
+                        player2_fire1.yposition1 = '3';
+                        player2_fire1.yposition2 = '0';
+                        player2_fire1.yposition3 = '0';
+                    }
+                    else if(playerpos2 == 1){
+                        player2_fire1.yposition0 = '0';
+                        player2_fire1.yposition1 = '0';
+                        player2_fire1.yposition2 = '3';
+                        player2_fire1.yposition3 = '3';
+                    }
+                    else{}
+                }
+                if(player2_fire1.xposition > 0 && player2_fire1.xposition < 16){
+                    player2_fire1.xposition--;
+                    if(player2_fire1.xposition == 0){
+                        player2_fire1.xposition = 17;
+                        if(player2_fire1.yposition2 == '3'){
+                            LCD_Cursor(17);
+                            LCD_WriteData(' ');
+                        }
+                        else if(player2_fire1.yposition0 == '3'){
+                            LCD_Cursor(1);
+                            LCD_WriteData(' ');
+                        }
+                        else{}
+                    }
+                }
+                ++cnt;
+                if(fire1.xposition >= 1 && fire1.xposition < 16){
+                    fire1.xposition++;
+                }
+                for(unsigned char j = 0; j < 100; ++j){
+                    if(walls[j].xposition > 0){
+                        walls[j].xposition--;
+                    }
+                    if(walls[j].xposition == 1){
+                        if(walls[j].yposition0 != '0' && playerpos == 0){
+                            pause1 = 3;
+                        }
+                        else if(walls[j].yposition1 != '0' && playerpos == 1){
+                            pause1 = 3;
+                        }
+                        else if(walls[j].yposition2 != '0' && playerpos == 2){
+                            pause1 = 3;
+                        }
+                        else if(walls[j].yposition3 != '0' && playerpos == 3){
+                            pause1 = 3;
+                        }
+                        else{}
+                    }
+                    if(player2_fire1.xposition == 1){
+                        if(player2_fire1.yposition0 == '3' && (playerpos == 0 || playerpos == 1)){
+                            pause1 = 3;
+                        }
+                        else if(player2_fire1.yposition3 == '3' && (playerpos == 2 || playerpos == 3)){
+                            pause1 = 3;
+                        }
+                        else{}
+                    }
+                    if(j % 2){
+                        delete2 = 1;
+                    }
+                    if(fire1.xposition == walls[j].xposition && fire1.xposition > 1 || fire1.xposition - 1 == walls[j].xposition){
+                        if(fire1.yposition0 == '3' && walls[j].yposition0 == '3'){
+                            walls[j].yposition0 = '0';
+                            walls[j].yposition1 = '0';
+                            //LCD_Cursor(fire1.xposition);
+                            //LCD_WriteData(0x78);
+                        }
+                        else if(fire1.yposition3 == '3' && walls[j].yposition3 == '3'){
+                            walls[j].yposition2 = '0';
+                            walls[j].yposition3 = '0';
+                            //LCD_Cursor(fire1.xposition + 16);
+                            //LCD_WriteData(0x78);
+                        }
+                        else if(fire1.yposition0 == '3' && walls[j].yposition0 == '0' && walls[j].yposition1 == '0'){
+                            
+                        }
+                        else if(fire1.yposition3 == '3' && walls[j].yposition2 == '0' && walls[j].yposition3 == '0'){
+                            
+                        }
+                        else{fire1.xposition = 17;}
+                    }
+                    if(fire1.xposition == player2_fire1.xposition || fire1.xposition - 1 == player2_fire1.xposition){
+                        if(fire1.yposition0 == player2_fire1.yposition0){
+                            player2_fire1.yposition0 = '0';
+                            player2_fire1.yposition1 = '0';
+                            //player2_fire1.yposition2 = '0';
+                            //player2_fire1.yposition3 = '0';
+                        }
+                        else if(fire1.yposition2 == player2_fire1.yposition2){
+                            player2_fire1.yposition2 = '0';
+                            player2_fire1.yposition3 = '0';
+                            //player2_fire1.yposition1 = '0';
+                            //player2_fire1.yposition0 = '0';
+                        }
+                        else{}
+                        player2_fire1.xposition = 0;
+                    }
+                    if(walls[j].xposition == player2_fire1.xposition){
+                        if(walls[j].yposition0 != '0' || walls[j].yposition1 != '0' && player2_fire1.yposition0 == '3'){
+                            walls[j].yposition0 = '0';
+                            walls[j].yposition1 = '0';
+                        }
+                        else if(walls[j].yposition3 != '0' || walls[j].yposition2 && player2_fire1.yposition3 == '3'){
+                            walls[j].yposition3 = '0';
+                            walls[j].yposition2 = '0';
+                        }
+                        else{}
+                    }
+                }
+                Lost_Animation = (Lost_Animation == 1) ? 0 : 1;
+                if(pause1 == 3){
+                    Lost_Animation_Elapsed++;
+                }
+                }
+        break;
+        
+        
+        default: break;
     }
-    // Error: Program should not exit!
-    return 0;
+    return state;
+}
+enum States2{game,gameover,crash} State2;
+int displaytsk(int state){
+    switch(State2){
+        case game:
+        if(pause1 == 0){
+            //LCD_Cursor(16);
+            //LCD_WriteData(cnt + '0');
+            if(player2_fire1.xposition > 0 && player2_fire1.xposition < 16){
+                if(player2_fire1.yposition0 == '3'){
+                    unsigned char k = 0;
+                    for(int l = 0; l < 100; ++l){
+                        if(walls[l].xposition == (player2_fire1.xposition + 1) && walls[l].yposition0 != '0'){
+                            k = 1;
+                        }
+                    }
+                    if(k == 0){
+                        LCD_Cursor(player2_fire1.xposition + 1);
+                        LCD_WriteData(' ');
+                    }
+                    LCD_Cursor(player2_fire1.xposition);
+                    LCD_WriteData(0xDB);
+                }
+                else if(player2_fire1.yposition2 == '3'){
+                    unsigned char k = 0;
+                    for(int l = 0; l < 100; ++l){
+                        if(walls[l].xposition == (player2_fire1.xposition + 1) && walls[l].yposition3 != '0'){
+                            k = 1;
+                        }
+                    }
+                    if(k == 0){
+                        LCD_Cursor(player2_fire1.xposition + 17);
+                        LCD_WriteData(' ');
+                    }
+                    LCD_Cursor(player2_fire1.xposition + 16);
+                    LCD_WriteData(0xDB);
+                }
+            }
+            if(playerpos2 == 0){
+                LCD_Cursor(32);
+                LCD_WriteData(' ');
+                LCD_Cursor(16);
+                LCD_WriteData(0xE0);
+            }
+            if(playerpos2 == 1){
+                LCD_Cursor(16);
+                LCD_WriteData(' ');
+                LCD_Cursor(32);
+                LCD_WriteData(0xE0);
+            }
+            if(fire1.xposition >= 1 && fire1.xposition < 16 && fire1.yposition1 == '3'){
+                if(fire1.xposition != 2){
+                    LCD_Cursor(fire1.xposition - 1);
+                    LCD_WriteData(' ');
+                }
+                LCD_Cursor(fire1.xposition);
+                LCD_WriteData(0xA5);
+            }
+            else if(fire1.xposition >= 1 && fire1.xposition < 16 && fire1.yposition3 == '3'){
+                if(fire1.xposition != 2){
+                    LCD_Cursor(fire1.xposition + 15);
+                    LCD_WriteData(' ');
+                }
+                LCD_Cursor(fire1.xposition + 16);
+                LCD_WriteData(0xA5);
+            }
+            if(SameFlag != 0){//player position
+                LCD_Cursor(1);
+                LCD_WriteData(' ');
+                LCD_Cursor(17);
+                LCD_WriteData(' ');
+                if(playerpos == 0){
+                    LCD_Cursor(1);
+                    LCD_WriteData(0x00);
+                }
+                else if(playerpos == 1){
+                    LCD_Cursor(1);
+                    LCD_WriteData(0x01);
+                }
+                else if(playerpos == 2){
+                    LCD_Cursor(17);
+                    LCD_WriteData(0x00);
+                }
+                else if(playerpos == 3){
+                    LCD_Cursor(17);
+                    LCD_WriteData(0x01);
+                }
+                SameFlag = 0;
+            }
+            for(int i = 0; i < 100; ++i){ // top display
+                if(walls[i].xposition <= 14 && walls[i].xposition > 1){
+                    unsigned char k = 0;
+                    if(walls[i].xposition + 1 == player2_fire1.xposition && player2_fire1.yposition0 == '3'){
+                        k = 1;
+                    }
+                    if(k == 0){
+                        if(walls[i].yposition0 == '0' && walls[i].yposition1 == '0'){
+                            
+                        }
+                        else{
+                            LCD_Cursor(walls[i].xposition + 1);
+                            LCD_WriteData(' ');
+                        }
+                    }
+                    LCD_Cursor(walls[i].xposition);
+                    if(walls[i].yposition0 == '1' && walls[i].yposition1 == '1'){
+                        LCD_WriteData(0xFF);
+                    }
+                    else if(walls[i].yposition0 == '1' && walls[i].yposition1 == '0'){
+                        LCD_WriteData(0x02);
+                    }
+                    else if(walls[i].yposition0 == '0' && walls[i].yposition1 == '0'){
+                        /*
+                        unsigned char k = 0;
+                        if(player2_fire1.xposition == walls[i].xposition && player2_fire1.yposition0 == '3'){
+                            k = 1;
+                        }
+                        if(k == 0){
+                            LCD_WriteData(' ');
+                        }*/
+                    }
+                    else if(walls[i].yposition0 == '0' && walls[i].yposition1 == '1'){
+                        LCD_WriteData(0x03);
+                    }
+                    else if(walls[i].yposition0 == '3'){
+                        LCD_WriteData(0x06);
+                    }
+                    else{LCD_DisplayString(1,"Error Top");}
+                }
+                if((walls[i].xposition == fire1.xposition) && (fire1.yposition0 == walls[i].yposition0)){
+                    walls[i].yposition0 = '0';
+                    walls[i].yposition1 = '0';
+                }
+            }
+            
+            for(int i = 0; i < 100; ++i){ // bottom display
+                if(walls[i].xposition <= 14 && walls[i].xposition > 1){
+                    
+                    unsigned char k = 0;
+                    if(walls[i].xposition + 1 == player2_fire1.xposition && player2_fire1.yposition3 == '3'){
+                        k = 1;
+                    }
+                    if(k == 0){
+                        
+                        if(walls[i].yposition3 == '0' && walls[i].yposition2 == '0'){
+                            
+                        }
+                        else{
+                            LCD_Cursor(walls[i].xposition + 17);
+                            LCD_WriteData(' ');
+                        }
+                    }
+                    LCD_Cursor(walls[i].xposition + 16);
+                    if(walls[i].yposition2 == '1' && walls[i].yposition3 == '1'){
+                        LCD_WriteData(0xFF);
+                    }
+                    else if(walls[i].yposition2 == '1' && walls[i].yposition3 == '0'){
+                        LCD_WriteData(0x02);
+                    }
+                    else if(walls[i].yposition2 == '0' && walls[i].yposition3 == '0'){
+                        /*
+                        unsigned char k = 0;
+                        if(player2_fire1.xposition == walls[i].xposition && player2_fire1.yposition2 == '3'){
+                            k = 1;
+                        }
+                        if(k == 0){
+                            LCD_WriteData(' ');
+                        }*/
+                    }
+                    else if(walls[i].yposition2 == '0' && walls[i].yposition3 == '1'){
+                        LCD_WriteData(0x03);
+                    }
+                    else if(walls[i].yposition3 == '3'){
+                        LCD_WriteData(0x06);
+                    }
+                    else{LCD_DisplayString(1,"Error Bot");}
+                }
+                if((walls[i].xposition == fire1.xposition) && (fire1.yposition3 == walls[i].yposition3)){
+                    walls[i].yposition2 = '0';
+                    walls[i].yposition3 = '0';
+                }
+            }
+            if(delete2 == 1){
+                LCD_Cursor(2);
+                LCD_WriteData(' ');
+                LCD_Cursor(18);
+                LCD_WriteData(' ');
+                delete2 = 0;
+            }
+        }
+        else if(pause1 == 3){
+            State2 = crash;
+        }
+        else if(pause1 == 4){
+            if(PauseFlag == 0){
+                LCD_DisplayString(1,"Press Pause     To Start");
+                PauseFlag = 1;
+            }
+        }
+        else{}
+        break;
+        
+        case crash:
+            if(playerpos == 0 || playerpos == 1){
+                LCD_Cursor(1);
+                LCD_WriteData(' ');
+                LCD_Cursor(1);
+                if(Lost_Animation == 0){
+                    LCD_WriteData('X');
+                }
+                else{
+                    LCD_WriteData('*');
+                }
+            }
+            if(playerpos == 2 || playerpos == 3){
+                LCD_Cursor(17);
+                LCD_WriteData(' ');
+                LCD_Cursor(17);
+                if(Lost_Animation == 0){
+                    LCD_WriteData('X');
+                }
+                else{
+                    LCD_WriteData('*');
+                }
+            }
+            if(Lost_Animation_Elapsed == 10){
+                LCD_DisplayString(1,"Game Over");
+                LCD_Cursor(17);
+                LCD_WriteData('S');
+                LCD_WriteData('c');
+                LCD_WriteData('o');
+                LCD_WriteData('r');
+                LCD_WriteData('e');
+                LCD_WriteData(' ');
+                LCD_WriteData('=');
+                LCD_WriteData(' ');
+                
+                unsigned char score1 = 0;
+                score1 = cnt / 1000;
+                cnt = cnt - score1 * 1000;
+                unsigned char score2 = 0;
+                score2 = cnt / 100;
+                unsigned char score3 = 0;
+                cnt = cnt - score2 * 100;
+                score3 = cnt / 10;
+                unsigned char score4 = 0;
+                cnt = cnt - score3 * 10;
+                score4 = cnt;
+                if(score1 != 0){
+                    LCD_WriteData(score1 + '0');
+                }
+                if(score2 != 0){
+                    LCD_WriteData(score2 + '0');
+                }
+                if(score3 != 0){
+                    LCD_WriteData(score3 + '0');
+                }
+                if(score4 != 0){
+                    LCD_WriteData(score4 + '0');
+                }
+                LCD_WriteData('!');
+                State2 = gameover;
+            }
+        break;
+        
+        case gameover:
+        if(pause1 == 0){
+            LCD_ClearScreen();
+            State2 = game;
+        }
+        break;
+        
+        default: break;
+    }
+    return state;
+}
+
+int main()
+{
+// Set Data Direction Registers
+// Buttons PORTA[0-7], set AVR PORTA to pull down logic
+DDRA = 0xF0; PORTA = 0x0F;
+DDRB = 0x00; PORTB = 0xFF;;
+DDRC = 0xFF; PORTC = 0x00;// LCD data lines
+DDRD = 0xFF; PORTD = 0x00;
+
+// Set the timer and turn it on
+LCD_init();
+LCD_ClearScreen();
+
+State0 = wait0;
+State = Init;
+State2 = game;
+// Period for the tasks
+unsigned long int SMbutton = 50;
+unsigned long int SMreal = 500;
+unsigned long int SMdisplay = 90;
+unsigned long int GCD = 10;
+
+//Recalculate GCD periods for scheduler
+unsigned long int SMTick1_period = SMbutton/GCD;
+unsigned long int SMTick2_period = SMreal/GCD;
+unsigned long int SMTick3_period = SMdisplay/GCD;
+
+static task task1, task2, task3;
+task *tasks[3] = { &task1, &task2, &task3};
+const unsigned short numTasks = sizeof(tasks)/sizeof(task*);
+
+// Task 1
+task1.state = -1;//Task initial state.
+task1.period = SMTick1_period;//Task Period.
+task1.elapsedTime = SMTick1_period;//Task current elapsed time.
+task1.TickFct = &button;//Function pointer for the tick.
+
+// Task 2
+task2.state = -1;//Task initial state.
+task2.period = SMTick2_period;//Task Period.
+task2.elapsedTime = SMTick2_period;//Task current elapsed time.
+task2.TickFct = &realtsk;//Function pointer for the tick.
+
+// Task 3
+task3.state = -1;//Task initial state.
+task3.period = SMTick3_period;//Task Period.
+task3.elapsedTime = SMTick3_period; // Task current elasped time.
+task3.TickFct = &displaytsk; // Function pointer for the tick.
+
+
+TimerSet(GCD);
+TimerOn();
+
+car_top();
+car_bot();
+obstacle3();
+obstacle4();
+car_top_obstacle();
+car_bot_obstacle();
+broken_obs();
+
+int time = 0;
+fire1.xposition = 0;
+
+
+unsigned short i; // Scheduler for-loop iterator
+while(1) {
+    
+    // Scheduler code
+    for ( i = 0; i < numTasks; i++ ) {
+        // Task is ready to tick
+        if ( tasks[i]->elapsedTime == tasks[i]->period ) {
+            // Setting next state for task
+            tasks[i]->state = tasks[i]->TickFct(tasks[i]->state);
+            // Reset the elapsed time for next tick.
+            tasks[i]->elapsedTime = 0;
+        }
+        tasks[i]->elapsedTime += 1;
+    }
+    
+    LCD_Cursor(0);
+    while(!TimerFlag);
+    TimerFlag = 0;
+}
 
 }
